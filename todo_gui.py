@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""
+Tkinter Personal To-Do List Application (Final Project)
+- Preset categories (General, Work, Personal, Urgent) + "Add Category…" button
+- Due Date (YYYY-MM-DD), colored rows (completed/due soon/overdue)
+- Dark theme
+- Buttons always work (show a prompt if no row is selected)
+- Shortcuts: Double-click row = Edit, Enter = Mark Completed, Delete = Delete
+"""
+
+import json
+import os
+from dataclasses import dataclass, asdict
+from typing import List, Optional
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+from datetime import datetime, date
+
+STORE_FILE = "tasks.json"
+DATE_FMT = "%Y-%m-%d"
+DEFAULT_CATEGORIES = ["General", "Work", "Personal", "Urgent"]
+
+# ---------------- Theme ----------------
+PALETTE = {
+    "bg":        "#C6CFFF",   # off-white
+    "panel":     "#C6CFFF",
+    "text":      "#374151",   # dark gray
+    "muted":     "#6b7280",
+    "accent":    "#a78bfa",   # soft purple
+    "accent_fg": "#ffffff",
+    "entry_bg":  "#f3f4f6",
+    "entry_fg":  "#374151",
+    "focus":     "#c084fc",   # brighter purple
+    "tv_bg":     "#ffffff",
+    "tv_fg":     "#374151",
+    "tv_head_bg":"#ede9fe",   # lavender header
+    "tv_head_fg":"#4c1d95",
+    "tv_sel_bg": "#ddd6fe",
+    "tv_sel_fg": "#111827",
+    "row_completed": "#bbf7d0",  # mint green
+    "row_due_soon":  "#fef9c3",  # light yellow
+    "row_overdue":   "#fecaca",  # soft red
+}
+
+def parse_date(raw: str) -> Optional[str]:
+    if not raw:
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        d = datetime.strptime(raw, DATE_FMT).date()
+        return d.strftime(DATE_FMT)
+    except ValueError:
+        return None
+
+def days_until(yyyy_mm_dd: Optional[str]) -> Optional[int]:
+    if not yyyy_mm_dd:
+        return None
+    try:
+        d = datetime.strptime(yyyy_mm_dd, DATE_FMT).date()
+        return (d - date.today()).days
+    except ValueError:
+        return None
+
+@dataclass
+class Task:
+    title: str
+    description: str
+    category: str = "General"
+    completed: bool = False
+    due_date: Optional[str] = None
+
+    def to_dict(self):
+        return asdict(self)
+
+    @staticmethod
+    def from_dict(d):
+        return Task(
+            title=d.get("title","").strip(),
+            description=d.get("description","").strip(),
+            category=(d.get("category","General") or "General").strip(),
+            completed=bool(d.get("completed", False)),
+            due_date=d.get("due_date") or None
+        )
+
+def load_tasks(filename: str = STORE_FILE) -> List[Task]:
+    if not os.path.exists(filename):
+        return []
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                return [Task.from_dict(x) for x in data]
+    except Exception:
+        pass
+    return []
+
+def save_tasks(tasks: List[Task], filename: str = STORE_FILE) -> None:
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump([t.to_dict() for t in tasks], f, indent=2, ensure_ascii=False)
+
+class TodoGUI(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Personal To-Do List")
+        self.geometry("1100x600")
+        self.minsize(990, 550)
+        self._apply_theme()
+
+        self.tasks: List[Task] = load_tasks()
+        self.categories = self._derive_categories()
+
+        # ---------- Top: Add form ----------
+        top = ttk.Frame(self, style="Panel.TFrame"); top.pack(fill="x", padx=12, pady=10)
+
+        ttk.Label(top, text="Title", style="Label.TLabel").grid(row=0, column=0, sticky="w")
+        self.var_title = tk.StringVar()
+        ttk.Entry(top, textvariable=self.var_title, width=26, style="Entry.TEntry").grid(row=1, column=0, padx=(0,10))
+
+        ttk.Label(top, text="Description", style="Label.TLabel").grid(row=0, column=1, sticky="w")
+        self.var_desc = tk.StringVar()
+        ttk.Entry(top, textvariable=self.var_desc, width=42, style="Entry.TEntry").grid(row=1, column=1, padx=(0,10))
+
+        ttk.Label(top, text="Category", style="Label.TLabel").grid(row=0, column=2, sticky="w")
+        self.var_cat = tk.StringVar(value=self.categories[0])
+        self.cat_combo = ttk.Combobox(top, textvariable=self.var_cat,
+                                      values=self.categories, state="readonly", width=16, style="Combo.TCombobox")
+        self.cat_combo.grid(row=1, column=2, padx=(0,6))
+        ttk.Button(top, text="Add Category…", style="TButton", command=self.add_category).grid(row=1, column=3, padx=(0,10))
+
+        ttk.Label(top, text="Due (YYYY-MM-DD)", style="Label.TLabel").grid(row=0, column=4, sticky="w")
+        self.var_due = tk.StringVar()
+        ttk.Entry(top, textvariable=self.var_due, width=16, style="Entry.TEntry").grid(row=1, column=4, padx=(0,10))
+
+        ttk.Button(top, text="Add Task", style="Accent.TButton", command=self.add_task).grid(row=1, column=5)
+
+        # ---------- Filters ----------
+        filt = ttk.Frame(self, style="Panel.TFrame"); filt.pack(fill="x", padx=12, pady=(0,8))
+        ttk.Label(filt, text="Status:", style="Muted.TLabel").pack(side="left")
+        self.var_status = tk.StringVar(value="All")
+        ttk.Combobox(filt, textvariable=self.var_status,
+                     values=["All","Completed","Pending"], width=14, state="readonly", style="Combo.TCombobox").pack(side="left", padx=8)
+
+        ttk.Label(filt, text="Category:", style="Muted.TLabel").pack(side="left")
+        self.var_filter_cat = tk.StringVar(value="All")
+        self.filter_combo = ttk.Combobox(filt, textvariable=self.var_filter_cat,
+                     values=["All"] + self.categories, width=18, state="readonly", style="Combo.TCombobox")
+        self.filter_combo.pack(side="left", padx=8)
+
+        ttk.Button(filt, text="Apply Filters", style="TButton", command=self.refresh).pack(side="left", padx=(8,0))
+        ttk.Button(filt, text="Clear Filters", style="TButton", command=self.clear_filters).pack(side="left", padx=(8,0))
+
+        # ---------- Task list ----------
+        cols = ("status","title","category","due","hint","description")
+        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=18, style="Treeview")
+        self.tree.heading("status", text="Status")
+        self.tree.heading("title", text="Title")
+        self.tree.heading("category", text="Category")
+        self.tree.heading("due", text="Due")
+        self.tree.heading("hint", text="Hint")
+        self.tree.heading("description", text="Description")
+        self.tree.column("status", width=120, anchor="w")
+        self.tree.column("title", width=300, anchor="w")
+        self.tree.column("category", width=150, anchor="w")
+        self.tree.column("due", width=120, anchor="w")
+        self.tree.column("hint", width=120, anchor="w")
+        self.tree.column("description", width=360, anchor="w")
+        self.tree.pack(fill="both", expand=True, padx=12, pady=10)
+
+        # row colors
+        self.tree.tag_configure("completed", background=PALETTE["row_completed"], foreground=PALETTE["tv_fg"])
+        self.tree.tag_configure("due_soon",  background=PALETTE["row_due_soon"],  foreground=PALETTE["tv_fg"])
+        self.tree.tag_configure("overdue",   background=PALETTE["row_overdue"],   foreground=PALETTE["tv_fg"])
+
+        # ---------- Buttons (always enabled) ----------
+        btns = ttk.Frame(self, style="Panel.TFrame"); btns.pack(fill="x", padx=12, pady=(0,12))
+        ttk.Button(btns, text="Mark Completed", style="TButton", command=self.mark_completed).pack(side="left")
+        ttk.Button(btns, text="Edit",            style="TButton", command=self.edit_task).pack(side="left", padx=8)
+        ttk.Button(btns, text="Delete",          style="TButton", command=self.delete_task).pack(side="left", padx=8)
+        ttk.Button(btns, text="Refresh",         style="TButton", command=self.refresh).pack(side="left", padx=8)
+
+        # Selection helpers
+        self.tree.bind("<Double-1>", lambda e: self.edit_task())   # double-click row to edit
+        self.bind("<Delete>",       lambda e: self.delete_task())
+        self.bind("<Return>",       lambda e: self.mark_completed())
+
+        self.refresh()
+
+    # -------- Theme ----------
+    def _apply_theme(self):
+        '''self.configure(bg=PALETTE["bg"])
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass'''
+        self.configure(bg=PALETTE["bg"])
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure(".", background=PALETTE["panel"], foreground=PALETTE["text"])
+        style.configure("Panel.TFrame", background=PALETTE["panel"])
+        style.configure("Label.TLabel", background=PALETTE["panel"], foreground=PALETTE["text"])
+        style.configure("Muted.TLabel", background=PALETTE["panel"], foreground=PALETTE["muted"])
+        style.configure("Entry.TEntry", fieldbackground=PALETTE["entry_bg"], foreground=PALETTE["entry_fg"], insertcolor=PALETTE["text"])
+        style.configure("TButton", background=PALETTE["panel"], foreground=PALETTE["text"])
+        style.configure("Accent.TButton", background=PALETTE["accent"], foreground=PALETTE["accent_fg"])
+        style.configure("Combo.TCombobox", fieldbackground=PALETTE["entry_bg"], foreground=PALETTE["entry_fg"], background=PALETTE["panel"])
+        style.configure("Treeview", background=PALETTE["tv_bg"], fieldbackground=PALETTE["tv_bg"], foreground=PALETTE["tv_fg"])
+        style.configure("Treeview.Heading", background=PALETTE["tv_head_bg"], foreground=PALETTE["tv_head_fg"])
+
+    # -------- Helpers ----------
+    def _derive_categories(self) -> List[str]:
+        cats = sorted({t.category for t in self.tasks if t.category})
+        base = DEFAULT_CATEGORIES.copy()
+        for c in cats:
+            if c not in base:
+                base.append(c)
+        return base
+
+    def _filtered_tasks(self):
+        status = self.var_status.get()
+        cat = self.var_filter_cat.get()
+        data = self.tasks
+        if status == "Completed":
+            data = [t for t in data if t.completed]
+        elif status == "Pending":
+            data = [t for t in data if not t.completed]
+        if cat and cat != "All":
+            data = [t for t in data if t.category.lower() == cat.lower()]
+        def s_key(t: Task):
+            due_key = datetime.max
+            if t.due_date:
+                try:
+                    due_key = datetime.strptime(t.due_date, DATE_FMT)
+                except ValueError:
+                    pass
+            return (t.completed, due_key, t.category.lower(), t.title.lower())
+        return sorted(data, key=s_key)
+
+    def _current_index(self) -> Optional[int]:
+        """Return selected row's original index (iid is the index we inserted)."""
+        sel = self.tree.selection()
+        if not sel:
+            return None
+        try:
+            return int(sel[0])  # <-- fixed: the iid is sel[0]
+        except Exception:
+            return None
+
+    # -------- Actions ----------
+    def add_category(self):
+        name = simpledialog.askstring("Add Category", "Category name:")
+        if not name:
+            return
+        name = name.strip()
+        if not name:
+            return
+        if name not in self.categories:
+            self.categories.append(name)
+            self.cat_combo.config(values=self.categories)
+            self.filter_combo.config(values=["All"] + self.categories)
+            self.var_cat.set(name)
+
+    def add_task(self):
+        title = self.var_title.get().strip()
+        if not title:
+            messagebox.showwarning("Validation", "Title is required.")
+            return
+        desc = self.var_desc.get().strip()
+        cat = (self.var_cat.get() or "General").strip()
+        if cat not in self.categories:
+            self.categories.append(cat)
+        due_raw = self.var_due.get().strip()
+        due = parse_date(due_raw) if due_raw else None
+        if due_raw and not due:
+            messagebox.showwarning("Validation", "Invalid Due Date. Use YYYY-MM-DD.")
+            return
+        self.tasks.append(Task(title=title, description=desc, category=cat, completed=False, due_date=due))
+        save_tasks(self.tasks)
+        self.var_title.set(""); self.var_desc.set(""); self.var_due.set("")
+        self.cat_combo.config(values=self.categories)
+        self.filter_combo.config(values=["All"] + self.categories)
+        self.refresh()
+
+    def mark_completed(self):
+        idx = self._current_index()
+        if idx is None:
+            messagebox.showinfo("Select a task", "Click a task row first, then press Mark Completed.")
+            return
+        if self.tasks[idx].completed:
+            messagebox.showinfo("Info", "This task is already completed.")
+            return
+        self.tasks[idx].completed = True
+        save_tasks(self.tasks)
+        self.refresh()
+
+    def edit_task(self):
+        idx = self._current_index()
+        if idx is None:
+            messagebox.showinfo("Select a task", "Click a task row first, then press Edit.")
+            return
+        t = self.tasks[idx]
+        new_title = simpledialog.askstring("Edit Title", "Title:", initialvalue=t.title)
+        if new_title is not None and new_title.strip():
+            t.title = new_title.strip()
+        new_desc = simpledialog.askstring("Edit Description", "Description:", initialvalue=t.description)
+        if new_desc is not None:
+            t.description = new_desc.strip()
+        new_cat = simpledialog.askstring("Edit Category", "Category:", initialvalue=t.category)
+        if new_cat is not None and new_cat.strip():
+            t.category = new_cat.strip()
+            if t.category not in self.categories:
+                self.categories.append(t.category)
+        curr_due = t.due_date or ""
+        new_due = simpledialog.askstring("Edit Due Date", "YYYY-MM-DD (empty = clear):", initialvalue=curr_due)
+        if new_due is not None:
+            new_due = new_due.strip()
+            if new_due == "":
+                t.due_date = None
+            else:
+                parsed = parse_date(new_due)
+                if parsed:
+                    t.due_date = parsed
+                else:
+                    messagebox.showwarning("Validation", "Invalid date. Keeping existing due date.")
+        save_tasks(self.tasks)
+        self.cat_combo.config(values=self.categories)
+        self.filter_combo.config(values=["All"] + self.categories)
+        self.refresh()
+
+    def delete_task(self):
+        idx = self._current_index()
+        if idx is None:
+            messagebox.showinfo("Select a task", "Click a task row first, then press Delete.")
+            return
+        t = self.tasks[idx]
+        if messagebox.askyesno("Confirm", f"Delete '{t.title}'?"):
+            self.tasks.pop(idx)
+            save_tasks(self.tasks)
+            self.refresh()
+
+    def clear_filters(self):
+        self.var_status.set("All")
+        self.var_filter_cat.set("All")
+        self.refresh()
+
+    # -------- Render ----------
+    def refresh(self):
+        # clear list
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        # map tasks to original indices (handles duplicates)
+        from collections import defaultdict, deque
+        key_map = defaultdict(deque)
+        for i, t in enumerate(self.tasks):
+            key_map[(t.title, t.description, t.category, t.completed, t.due_date)].append(i)
+
+        for t in self._filtered_tasks():
+            key = (t.title, t.description, t.category, t.completed, t.due_date)
+            orig_idx = key_map[key].popleft() if key_map[key] else self.tasks.index(t)
+
+            due_text = t.due_date or "-"
+            hint = ""
+            eta = days_until(t.due_date)
+            tags = []
+            if t.completed:
+                tags.append("completed")
+            else:
+                if eta is not None:
+                    if eta < 0:
+                        hint = f"OVERDUE {-eta}d"; tags.append("overdue")
+                    elif eta == 0:
+                        hint = "TODAY"; tags.append("due_soon")
+                    elif eta <= 3:
+                        hint = f"in {eta}d"; tags.append("due_soon")
+
+            status = "✔ Completed" if t.completed else "• Pending"
+            self.tree.insert("", "end", iid=str(orig_idx),
+                             values=(status, t.title, t.category, due_text, hint, t.description),
+                             tags=tuple(tags))
+
+def main():
+    app = TodoGUI()
+    app.mainloop()
+
+if __name__ == "__main__":
+    main()
