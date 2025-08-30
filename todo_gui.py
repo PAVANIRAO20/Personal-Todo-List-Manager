@@ -6,6 +6,7 @@ Tkinter Personal To-Do List Application (Final Project)
 - Dark theme
 - Buttons always work (show a prompt if no row is selected)
 - Shortcuts: Double-click row = Edit, Enter = Mark Completed, Delete = Delete
+- NOW WITH: SF Pro Font, High DPI Awareness, and Web-like Font Sizes
 """
 
 import json
@@ -15,6 +16,7 @@ from typing import List, Optional
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from datetime import datetime, date
+import ctypes # <-- Import ctypes for DPI awareness
 
 STORE_FILE = "tasks.json"
 DATE_FMT = "%Y-%m-%d"
@@ -103,70 +105,76 @@ def save_tasks(tasks: List[Task], filename: str = STORE_FILE) -> None:
 class TodoGUI(tk.Tk):
     def __init__(self):
         super().__init__()
+        self._setup_dpi_awareness() # <-- Call the new DPI setup method
+
         self.title("Personal To-Do List")
-        self.geometry("1100x600")
-        self.minsize(990, 550)
+        self.geometry("1400x700")  # Made wider to accommodate larger inputs
+        self.minsize(1200, 600)
         self._apply_theme()
 
         self.tasks: List[Task] = load_tasks()
         self.categories = self._derive_categories()
 
         # ---------- Top: Add form ----------
-        top = ttk.Frame(self, style="Panel.TFrame"); top.pack(fill="x", padx=12, pady=10)
+        top = ttk.Frame(self, style="Panel.TFrame"); top.pack(fill="x", padx=15, pady=12)
 
-        ttk.Label(top, text="Title", style="Label.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(top, text="Title", style="Label.TLabel").grid(row=0, column=0, sticky="w", pady=(0,5))
         self.var_title = tk.StringVar()
-        ttk.Entry(top, textvariable=self.var_title, width=26, style="Entry.TEntry").grid(row=1, column=0, padx=(0,10))
+        ttk.Entry(top, textvariable=self.var_title, width=30, style="Entry.TEntry").grid(row=1, column=0, padx=(0,20))
 
-        ttk.Label(top, text="Description", style="Label.TLabel").grid(row=0, column=1, sticky="w")
+        ttk.Label(top, text="Description", style="Label.TLabel").grid(row=0, column=1, sticky="w", pady=(0,5))
         self.var_desc = tk.StringVar()
-        ttk.Entry(top, textvariable=self.var_desc, width=42, style="Entry.TEntry").grid(row=1, column=1, padx=(0,10))
+        ttk.Entry(top, textvariable=self.var_desc, width=45, style="Entry.TEntry").grid(row=1, column=1, padx=(0,12))
 
-        ttk.Label(top, text="Category", style="Label.TLabel").grid(row=0, column=2, sticky="w")
+        ttk.Label(top, text="Category", style="Label.TLabel").grid(row=0, column=2, sticky="w", pady=(0,5))
         self.var_cat = tk.StringVar(value=self.categories[0])
         self.cat_combo = ttk.Combobox(top, textvariable=self.var_cat,
-                                      values=self.categories, state="readonly", width=16, style="Combo.TCombobox")
-        self.cat_combo.grid(row=1, column=2, padx=(0,6))
-        ttk.Button(top, text="Add Category…", style="TButton", command=self.add_category).grid(row=1, column=3, padx=(0,10))
+                                      values=self.categories, state="readonly", width=18) # <-- Removed style
+        self.cat_combo.grid(row=1, column=2, padx=(0,8))
+        ttk.Button(top, text="Add Category…", style="TButton", command=self.add_category).grid(row=1, column=3, padx=(0,12))
 
-        ttk.Label(top, text="Due (YYYY-MM-DD)", style="Label.TLabel").grid(row=0, column=4, sticky="w")
+        ttk.Label(top, text="Due (YYYY-MM-DD)", style="Label.TLabel").grid(row=0, column=4, sticky="w", pady=(0,5))
         self.var_due = tk.StringVar()
-        ttk.Entry(top, textvariable=self.var_due, width=16, style="Entry.TEntry").grid(row=1, column=4, padx=(0,10))
+        ttk.Entry(top, textvariable=self.var_due, width=18, style="Entry.TEntry").grid(row=1, column=4, padx=(0,12))
 
         ttk.Button(top, text="Add Task", style="Accent.TButton", command=self.add_task).grid(row=1, column=5)
 
         # ---------- Filters ----------
-        filt = ttk.Frame(self, style="Panel.TFrame"); filt.pack(fill="x", padx=12, pady=(0,8))
+        filt = ttk.Frame(self, style="Panel.TFrame"); filt.pack(fill="x", padx=15, pady=(0,10))
         ttk.Label(filt, text="Status:", style="Muted.TLabel").pack(side="left")
         self.var_status = tk.StringVar(value="All")
         ttk.Combobox(filt, textvariable=self.var_status,
-                     values=["All","Completed","Pending"], width=14, state="readonly", style="Combo.TCombobox").pack(side="left", padx=8)
+                     values=["All","Completed","Pending"], width=20, state="readonly").pack(side="left", padx=10) # <-- Removed style
 
         ttk.Label(filt, text="Category:", style="Muted.TLabel").pack(side="left")
         self.var_filter_cat = tk.StringVar(value="All")
         self.filter_combo = ttk.Combobox(filt, textvariable=self.var_filter_cat,
-                     values=["All"] + self.categories, width=18, state="readonly", style="Combo.TCombobox")
-        self.filter_combo.pack(side="left", padx=8)
+                     values=["All"] + self.categories, width=20, state="readonly") # <-- Removed style
+        self.filter_combo.pack(side="left", padx=10)
 
-        ttk.Button(filt, text="Apply Filters", style="TButton", command=self.refresh).pack(side="left", padx=(8,0))
-        ttk.Button(filt, text="Clear Filters", style="TButton", command=self.clear_filters).pack(side="left", padx=(8,0))
+        ttk.Label(filt, text="Search:", style="Muted.TLabel").pack(side="left", padx=(12,0))
+        self.var_search = tk.StringVar()
+        ttk.Entry(filt, textvariable=self.var_search, width=35, style="Entry.TEntry").pack(side="left", padx=(6,0))
+        ttk.Button(filt, text="Apply", style="TButton", command=self.refresh).pack(side="left", padx=(8,0))
+        ttk.Button(filt, text="Clear", style="TButton", command=self.clear_filters).pack(side="left", padx=(8,0))
+
 
         # ---------- Task list ----------
         cols = ("status","title","category","due","hint","description")
-        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=18, style="Treeview")
+        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=16, style="Treeview")
         self.tree.heading("status", text="Status")
         self.tree.heading("title", text="Title")
         self.tree.heading("category", text="Category")
         self.tree.heading("due", text="Due")
         self.tree.heading("hint", text="Hint")
         self.tree.heading("description", text="Description")
-        self.tree.column("status", width=120, anchor="w")
-        self.tree.column("title", width=300, anchor="w")
-        self.tree.column("category", width=150, anchor="w")
-        self.tree.column("due", width=120, anchor="w")
-        self.tree.column("hint", width=120, anchor="w")
-        self.tree.column("description", width=360, anchor="w")
-        self.tree.pack(fill="both", expand=True, padx=12, pady=10)
+        self.tree.column("status", width=140, anchor="w")
+        self.tree.column("title", width=320, anchor="w")
+        self.tree.column("category", width=160, anchor="w")
+        self.tree.column("due", width=130, anchor="w")
+        self.tree.column("hint", width=130, anchor="w")
+        self.tree.column("description", width=380, anchor="w")
+        self.tree.pack(fill="both", expand=True, padx=15, pady=12)
 
         # row colors
         self.tree.tag_configure("completed", background=PALETTE["row_completed"], foreground=PALETTE["tv_fg"])
@@ -175,10 +183,10 @@ class TodoGUI(tk.Tk):
 
         # ---------- Buttons (always enabled) ----------
         btns = ttk.Frame(self, style="Panel.TFrame"); btns.pack(fill="x", padx=12, pady=(0,12))
-        ttk.Button(btns, text="Mark Completed", style="TButton", command=self.mark_completed).pack(side="left")
-        ttk.Button(btns, text="Edit",            style="TButton", command=self.edit_task).pack(side="left", padx=8)
-        ttk.Button(btns, text="Delete",          style="TButton", command=self.delete_task).pack(side="left", padx=8)
-        ttk.Button(btns, text="Refresh",         style="TButton", command=self.refresh).pack(side="left", padx=8)
+        ttk.Button(btns, text="✓ Mark Completed", style="TButton", command=self.mark_completed).pack(side="left")
+        ttk.Button(btns, text="✎ Edit",            style="TButton", command=self.edit_task).pack(side="left", padx=8)
+        ttk.Button(btns, text="🗑 Delete",          style="TButton", command=self.delete_task).pack(side="left", padx=8)
+        ttk.Button(btns, text="⟳ Refresh",         style="TButton", command=self.refresh).pack(side="left", padx=8)
 
         # Selection helpers
         self.tree.bind("<Double-1>", lambda e: self.edit_task())   # double-click row to edit
@@ -187,30 +195,106 @@ class TodoGUI(tk.Tk):
 
         self.refresh()
 
+    # -------- DPI Scaling ----------
+    def _setup_dpi_awareness(self):
+        """
+        Makes the application DPI-aware to prevent blurriness or incorrect
+        scaling on high-resolution displays, particularly on Windows.
+        """
+        try:
+            # This call is specific to Windows
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            # This will fail on non-Windows systems, which is fine.
+            # macOS and most Linux DEs handle this better by default.
+            pass
+
     # -------- Theme ----------
     def _apply_theme(self):
-        '''self.configure(bg=PALETTE["bg"])
-        style = ttk.Style()
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass'''
         self.configure(bg=PALETTE["bg"])
         style = ttk.Style()
         try:
             style.theme_use("clam")
         except tk.TclError:
             pass
-        style.configure(".", background=PALETTE["panel"], foreground=PALETTE["text"])
+
+        # Font definitions with web-like sizes, now bigger + bold
+        font_family_fallbacks = ("SF Pro", "Helvetica", "Arial", "sans-serif")
+
+        # Increase size and make bold
+        base_font = (font_family_fallbacks, 16, "bold")        # Main body text
+        label_font = (font_family_fallbacks, 15, "bold")       # Form labels
+        button_font = (font_family_fallbacks, 16, "bold")      # Buttons
+        accent_button_font = (font_family_fallbacks, 16, "bold")  # Accent buttons
+        header_font = (font_family_fallbacks, 15, "bold")      # Table headers
+        tree_font = (font_family_fallbacks, 15, "bold")        # Table content
+
+
+        style.configure(".",
+                        background=PALETTE["panel"],
+                        foreground=PALETTE["text"],
+                        font=base_font)
+
         style.configure("Panel.TFrame", background=PALETTE["panel"])
-        style.configure("Label.TLabel", background=PALETTE["panel"], foreground=PALETTE["text"])
-        style.configure("Muted.TLabel", background=PALETTE["panel"], foreground=PALETTE["muted"])
-        style.configure("Entry.TEntry", fieldbackground=PALETTE["entry_bg"], foreground=PALETTE["entry_fg"], insertcolor=PALETTE["text"])
-        style.configure("TButton", background=PALETTE["panel"], foreground=PALETTE["text"])
-        style.configure("Accent.TButton", background=PALETTE["accent"], foreground=PALETTE["accent_fg"])
-        style.configure("Combo.TCombobox", fieldbackground=PALETTE["entry_bg"], foreground=PALETTE["entry_fg"], background=PALETTE["panel"])
-        style.configure("Treeview", background=PALETTE["tv_bg"], fieldbackground=PALETTE["tv_bg"], foreground=PALETTE["tv_fg"])
-        style.configure("Treeview.Heading", background=PALETTE["tv_head_bg"], foreground=PALETTE["tv_head_fg"])
+
+        style.configure("Label.TLabel",
+                        background=PALETTE["panel"],
+                        foreground=PALETTE["text"],
+                        font=label_font)
+
+        style.configure("Muted.TLabel",
+                        background=PALETTE["panel"],
+                        foreground=PALETTE["muted"],
+                        font=label_font)
+
+        # Increased padding for Entry widgets to match larger fonts
+        style.configure("Entry.TEntry",
+                        fieldbackground=PALETTE["entry_bg"],
+                        foreground=PALETTE["entry_fg"],
+                        insertcolor=PALETTE["text"],
+                        font=base_font,
+                        padding=(8, 6))  # Added padding for better visual appearance
+
+        style.configure("TButton",
+                        background=PALETTE["panel"],
+                        foreground=PALETTE["text"],
+                        font=button_font,
+                        padding=(12, 8))  # Added padding for buttons
+
+        style.configure("Accent.TButton",
+                        background=PALETTE["accent"],
+                        foreground=PALETTE["accent_fg"],
+                        font=accent_button_font,
+                        padding=(12, 8))  # Added padding for accent buttons
+
+        # --- CORRECTED COMBOBOX STYLING ---
+        # Configure the default TCombobox style for the entry part
+        style.configure("TCombobox",
+                        fieldbackground=PALETTE["entry_bg"],
+                        foreground=PALETTE["entry_fg"],
+                        background=PALETTE["panel"],
+                        arrowcolor=PALETTE["text"],
+                        selectbackground=PALETTE["entry_bg"],
+                        selectforeground=PALETTE["entry_fg"],
+                        font=base_font,
+                        padding=(8, 6))
+
+        # Explicitly set the font for the dropdown list part of the combobox
+        self.option_add("*TCombobox*Listbox.font", base_font)
+        # --- END CORRECTION ---
+
+        style.configure("Treeview",
+                        background=PALETTE["tv_bg"],
+                        fieldbackground=PALETTE["tv_bg"],
+                        foreground=PALETTE["tv_fg"],
+                        rowheight=36,  # Increased row height for larger fonts
+                        font=tree_font)
+
+        style.configure("Treeview.Heading",
+                        background=PALETTE["tv_head_bg"],
+                        foreground=PALETTE["tv_head_fg"],
+                        font=header_font,
+                        padding=(8, 8))  # Added padding for headers
 
     # -------- Helpers ----------
     def _derive_categories(self) -> List[str]:
@@ -247,8 +331,9 @@ class TodoGUI(tk.Tk):
         if not sel:
             return None
         try:
-            return int(sel[0])  # <-- fixed: the iid is sel[0]
-        except Exception:
+            # The iid we set is a string of the task's original index.
+            return int(sel[0])
+        except (ValueError, IndexError):
             return None
 
     # -------- Actions ----------
@@ -291,18 +376,27 @@ class TodoGUI(tk.Tk):
         if idx is None:
             messagebox.showinfo("Select a task", "Click a task row first, then press Mark Completed.")
             return
-        if self.tasks[idx].completed:
-            messagebox.showinfo("Info", "This task is already completed.")
-            return
-        self.tasks[idx].completed = True
-        save_tasks(self.tasks)
-        self.refresh()
+        if 0 <= idx < len(self.tasks):
+            if self.tasks[idx].completed:
+                messagebox.showinfo("Info", "This task is already completed.")
+                return
+            self.tasks[idx].completed = True
+            save_tasks(self.tasks)
+            self.refresh()
+        else:
+             messagebox.showerror("Error", "Selected task index is out of range.")
+
 
     def edit_task(self):
         idx = self._current_index()
         if idx is None:
             messagebox.showinfo("Select a task", "Click a task row first, then press Edit.")
             return
+
+        if not (0 <= idx < len(self.tasks)):
+            messagebox.showerror("Error", "Invalid task selected.")
+            return
+
         t = self.tasks[idx]
         new_title = simpledialog.askstring("Edit Title", "Title:", initialvalue=t.title)
         if new_title is not None and new_title.strip():
@@ -337,6 +431,11 @@ class TodoGUI(tk.Tk):
         if idx is None:
             messagebox.showinfo("Select a task", "Click a task row first, then press Delete.")
             return
+
+        if not (0 <= idx < len(self.tasks)):
+            messagebox.showerror("Error", "Invalid task selected.")
+            return
+
         t = self.tasks[idx]
         if messagebox.askyesno("Confirm", f"Delete '{t.title}'?"):
             self.tasks.pop(idx)
@@ -362,7 +461,14 @@ class TodoGUI(tk.Tk):
 
         for t in self._filtered_tasks():
             key = (t.title, t.description, t.category, t.completed, t.due_date)
-            orig_idx = key_map[key].popleft() if key_map[key] else self.tasks.index(t)
+            try:
+                orig_idx = key_map[key].popleft()
+            except IndexError:
+                # Fallback just in case, though it should not happen with this logic
+                try:
+                    orig_idx = self.tasks.index(t)
+                except ValueError:
+                    continue # Should not happen
 
             due_text = t.due_date or "-"
             hint = ""
@@ -379,7 +485,7 @@ class TodoGUI(tk.Tk):
                     elif eta <= 3:
                         hint = f"in {eta}d"; tags.append("due_soon")
 
-            status = "✔ Completed" if t.completed else "• Pending"
+            status = "✓ Completed" if t.completed else "• Pending"
             self.tree.insert("", "end", iid=str(orig_idx),
                              values=(status, t.title, t.category, due_text, hint, t.description),
                              tags=tuple(tags))

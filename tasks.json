@@ -1,1 +1,107 @@
-[]
+[
+  {
+    "title": "Math Assignment 1",
+    "description": "Solve exercises from chapter 3",
+    "category": "Work",
+    "completed": false,
+    "due_date": "2025-09-01"
+  },
+  {
+    "title": "CS Project Proposal",
+    "description": "Draft proposal for AI project",
+    "category": "Urgent",
+    "completed": false,
+    "due_date": "2025-09-02"
+  },
+  {
+    "title": "Physics Lab Report",
+    "description": "Write report on optics experiment",
+    "category": "Work",
+    "completed": false,
+    "due_date": "2025-09-04"
+  },
+  {
+    "title": "Buy Stationery",
+    "description": "Pens, notebooks, and graph sheets",
+    "category": "Personal",
+    "completed": true,
+    "due_date": "2025-08-20"
+  },
+  {
+    "title": "Group Study",
+    "description": "Meet friends to revise Data Structures",
+    "category": "General",
+    "completed": false,
+    "due_date": "2025-09-03"
+  },
+  {
+    "title": "Library Book Return",
+    "description": "Return DBMS reference book",
+    "category": "Urgent",
+    "completed": false,
+    "due_date": "2025-08-20"
+  },
+  {
+    "title": "Part-time Work",
+    "description": "Submit weekly work log",
+    "category": "Work",
+    "completed": true,
+    "due_date": "2025-08-25"
+  },
+  {
+    "title": "Birthday Gift",
+    "description": "Buy gift for roommate",
+    "category": "Personal",
+    "completed": false,
+    "due_date": "2025-09-06"
+  },
+  {
+    "title": "Sports Practice",
+    "description": "Football practice at 6 PM",
+    "category": "Personal",
+    "completed": false,
+    "due_date": "2025-08-15"
+  },
+  {
+    "title": "Weekly Groceries",
+    "description": "Buy fruits and essentials",
+    "category": "Personal",
+    "completed": true,
+    "due_date": "2025-08-24"
+  },
+  {
+    "title": "Exam Registration",
+    "description": "Register for mid-semester exams",
+    "category": "Urgent",
+    "completed": false,
+    "due_date": "2025-09-05"
+  },
+  {
+    "title": "Coding Contest",
+    "description": "Participate in Codeforces round",
+    "category": "General",
+    "completed": false,
+    "due_date": "2025-08-29"
+  },
+  {
+    "title": "Presentation Slides",
+    "description": "Prepare slides for OS seminar",
+    "category": "Work",
+    "completed": false,
+    "due_date": "2025-09-07"
+  },
+  {
+    "title": "Health Checkup",
+    "description": "Visit campus medical center",
+    "category": "Personal",
+    "completed": false,
+    "due_date": "2025-09-10"
+  },
+  {
+    "title": "Class Notes",
+    "description": "Organize notes for revision",
+    "category": "General",
+    "completed": false,
+    "due_date": "2025-09-08"
+  }
+]
